@@ -1,0 +1,101 @@
+buildscript {
+    ext.kotlin_version = '1.2.61'
+    ext.arch_components_version = '1.1.1'
+
+    repositories {
+        google()
+        jcenter()
+    }
+
+    dependencies {
+        classpath 'com.android.tools.build:gradle:3.2.1'
+        classpath 'com.automattic.android:fetchstyle:1.1'
+    }
+}
+
+apply plugin: 'com.automattic.android.fetchstyle'
+
+project.ext.preDexLibs = !project.hasProperty('disablePreDex')
+project.ext.buildGutenbergFromSource = project.properties.getOrDefault('wp.BUILD_GUTENBERG_FROM_SOURCE', false)
+
+allprojects {
+    apply plugin: 'checkstyle'
+
+    repositories {
+        google()
+        jcenter()
+        maven { url "https://dl.bintray.com/wordpress-mobile/maven" }
+        maven { url "https://jitpack.io" }
+
+        if (rootProject.ext.buildGutenbergFromSource) {
+            maven {
+                // All of React Native (JS, Obj-C sources, Android binaries) is installed from npm
+                url "$rootDir/libs/gutenberg-mobile/node_modules/react-native/android"
+            }
+            maven {
+                // Local Maven repo containing AARs with JSC library built for Android
+                url "$rootDir/libs/gutenberg-mobile/node_modules/jsc-android/dist"
+            }
+        } else {
+            maven {
+                // All of React Native (JS, Obj-C sources, Android binaries) is installed from npm
+                url "https://cdn.jsdelivr.net/npm/react-native@0.57.5/android"
+            }
+            maven {
+                // Local Maven repo containing AARs with JSC library built for Android
+                url "https://cdn.jsdelivr.net/npm/jsc-android@224109.1.0/dist/"
+            }
+        }
+    }
+
+    configurations.all {
+        resolutionStrategy {
+            force 'org.webkit:android-jsc:r224109'
+        }
+    }
+
+    task checkstyle(type: Checkstyle) {
+        source 'src'
+
+        classpath = files()
+    }
+
+    checkstyle {
+        toolVersion = '8.3'
+        configFile file("${project.rootDir}/config/checkstyle.xml")
+    }
+}
+
+subprojects {
+    project.plugins.whenPluginAdded { plugin ->
+        if ("com.android.build.gradle.AppPlugin".equals(plugin.class.name)) {
+            project.android.dexOptions.preDexLibraries = rootProject.ext.preDexLibs
+        } else if ("com.android.build.gradle.LibraryPlugin".equals(plugin.class.name)) {
+            project.android.dexOptions.preDexLibraries = rootProject.ext.preDexLibs
+        }
+    }
+
+    configurations {
+        ktlint
+    }
+
+    dependencies {
+        ktlint 'com.github.shyiko:ktlint:0.28.0'
+    }
+
+    task ktlint(type: JavaExec) {
+        main = "com.github.shyiko.ktlint.Main"
+        classpath = configurations.ktlint
+        args "src/**/*.kt"
+    }
+
+    task ktlintFormat(type: JavaExec) {
+        main = "com.github.shyiko.ktlint.Main"
+        classpath = configurations.ktlint
+        args "-F", "src/**/*.kt"
+    }
+}
+
+ext {
+    fluxCVersion = 'c452ef2e9059b0a29d77ea0a03026bacf79f46a9'
+}
